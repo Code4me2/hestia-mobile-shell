@@ -1,6 +1,43 @@
 from hestia_mobile_shell.state import MobileShellState, reduce_assistant_event, state_debug_lines
 
 
+def test_assistant_response_material_replaces_last_typed_user_message():
+    state = reduce_assistant_event(MobileShellState.initial(), {"type": "hestia_mobile.submit_text", "text": "hello"})
+    state = reduce_assistant_event(state, {"type": "assistant.transcript.assistant_delta", "text": "Hi there"})
+
+    assert state.primary_material is not None
+    assert state.primary_material.id == "transcript"
+    assert state.current_material == "Hi there"
+
+
+def test_empty_tool_result_clears_current_tool_status_material_from_bridge():
+    state = reduce_assistant_event(MobileShellState.initial(), {"type": "assistant.tool_call", "name": "calendar"})
+    state = reduce_assistant_event(state, {"type": "assistant.tool_result", "name": ""})
+
+    assert state.tool_status is None
+    assert all(material.kind != "tool_status" for material in state.materials)
+    assert state.current_material is None
+
+
+def test_tool_result_clears_tool_status_material():
+    state = reduce_assistant_event(MobileShellState.initial(), {"type": "assistant.tool_call", "name": "calendar"})
+    state = reduce_assistant_event(state, {"type": "assistant.tool_result", "name": "calendar"})
+
+    assert state.tool_status is None
+    assert all(material.id != "tool:calendar" for material in state.materials)
+    assert state.current_material is None
+
+
+def test_chat_error_state_uses_event_message_for_status():
+    state = reduce_assistant_event(
+        MobileShellState.initial(),
+        {"type": "assistant.state", "state": "error", "message": "chat socket unavailable"},
+    )
+
+    assert state.mode == "error"
+    assert state.status_text == "chat socket unavailable"
+
+
 def test_event_journal_records_recent_event_summaries_and_caps_length():
     state = MobileShellState.initial()
 

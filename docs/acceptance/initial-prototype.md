@@ -8,6 +8,7 @@ This checklist defines the current "initial prototype" target for the AI-primary
 - Voice/status surface is primary; screen material appears only when useful.
 - Bottom-right affordance opens a normal-app placeholder without making the dashboard primary.
 - Chat/text input exists as fallback/debug, not the main interaction.
+- Typed fallback text has a tested `ai.sock` chat client path that speaks the bridge protocol.
 - Debug/event journal is available on demand and hidden by default.
 - Phone-call protected mode suppresses cards, chat input, app interface, actions, and tool status while retaining state for later restore.
 
@@ -109,5 +110,5 @@ git diff --check
 ## Not yet claimed
 
 - Runtime validation on the actual phone/Phosh session.
-- Real backend submission of typed chat text; the current text command is a local fallback surface event.
+- Live end-to-end typed chat validation against the real on-phone `hestia-ai-bridge`; the `ai.sock` client/protocol path is implemented and unit-tested.
 - Replacement of Phosh or app launcher integration beyond the safe prototype launcher/service template.

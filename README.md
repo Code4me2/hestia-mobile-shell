@@ -164,7 +164,7 @@ The mobile canvas accepts a small, constrained visual verb set. These are local 
 
 Cards are prioritized by `priority`; ties use the most recently updated card. `dismiss_card` without an `id` clears all materials. The GTK prototype renders the primary material card plus action labels, while the pure reducer remains fully unit-tested.
 
-## Chat fallback and debug overlay
+## Chat fallback and ai.sock typed submission
 
 The chat fallback is explicit and secondary:
 
@@ -174,7 +174,25 @@ The chat fallback is explicit and secondary:
 {"type":"hestia_mobile.close_chat"}
 ```
 
-Submitted text is currently a local prototype event: it opens the chat fallback, records a user transcript material, and moves the visible state to `Thinking`. Backend delivery for typed text is intentionally not claimed yet.
+Submitted text opens the chat fallback, records local user transcript material, and sends a bridge-compatible `chat` request to `ai.sock` when the app is not in demo replay mode:
+
+```json
+{"type":"chat","model":"default","messages":[{"role":"user","content":"What's next?"}],"extra_context":{"source":"hestia-mobile-shell","input_mode":"typed_fallback"}}
+```
+
+The `ai.sock` response stream is normalized back into shell events:
+
+```text
+token -> assistant.transcript.assistant_delta
+tool_call -> assistant.tool_call
+tool_result -> assistant.tool_result
+done -> assistant.state idle
+error -> assistant.state error
+```
+
+Live phone/bridge runtime validation is still pending until the device is available.
+
+## Debug overlay
 
 The debug overlay is hidden by default and can be toggled with `F12` or events:
 

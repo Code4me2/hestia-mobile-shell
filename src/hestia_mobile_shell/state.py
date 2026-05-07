@@ -79,7 +79,11 @@ def _reduce_assistant_event_without_journal(
 
     if event_type == "assistant.state":
         assistant_state = str(event.get("state", "idle"))
-        return _state_for_assistant_lifecycle(state, assistant_state)
+        return _state_for_assistant_lifecycle(
+            state,
+            assistant_state,
+            message=_optional_string(event.get("message")),
+        )
 
     if event_type in {
         "assistant.transcript.assistant_delta",
@@ -94,7 +98,7 @@ def _reduce_assistant_event_without_journal(
                 id="transcript",
                 kind="transcript",
                 title=text,
-                priority=50,
+                priority=65 if event_type == "assistant.transcript.assistant_delta" else 50,
             ),
         )
 
@@ -105,6 +109,17 @@ def _reduce_assistant_event_without_journal(
             status=str(event.get("status") or "running"),
             body=f"Using {str(event.get('name') or 'tool')}",
         )
+
+    if event_type == "assistant.tool_result":
+        name = str(event.get("name") or "")
+        if not name:
+            state_without_tools = replace(
+                state,
+                materials=tuple(material for material in state.materials if material.kind != "tool_status"),
+                tool_status=None,
+            )
+            return _sync_material_mode(state_without_tools)
+        return _dismiss_material(state, f"tool:{name}")
 
     if event_type == "hestia_mobile.show_card":
         return _upsert_material(state, _card_from_event(event, kind="card"))
@@ -211,6 +226,7 @@ def _reduce_assistant_event_without_journal(
 def _state_for_assistant_lifecycle(
     state: MobileShellState,
     assistant_state: str,
+    message: Optional[str] = None,
 ) -> MobileShellState:
     mapping = {
         "idle": ("blank", "Listening when needed"),
@@ -223,6 +239,8 @@ def _state_for_assistant_lifecycle(
         "call_active": ("call_paused", "Paused for phone call"),
     }
     mode, status_text = mapping.get(assistant_state, ("blank", "Listening when needed"))
+    if assistant_state == "error" and message:
+        status_text = message
     if state.app_interface_visible and mode not in {"call_paused", "offline", "error"}:
         mode = "app_interface"
     elif state.chat_visible and mode not in {"call_paused", "offline", "error"}:

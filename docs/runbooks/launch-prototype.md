@@ -27,7 +27,8 @@ In another terminal:
 ```bash
 PYTHONPATH=src python3 -m hestia_mobile_shell.app \
   --windowed \
-  --assistant-socket /tmp/hestia-assistant.sock
+  --assistant-socket /tmp/hestia-assistant.sock \
+  --ai-socket "$XDG_RUNTIME_DIR/hestia-shell/ai.sock"
 ```
 
 Manual one-shot control while the app is connected to that socket:

@@ -11,6 +11,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
+from .ai_chat import AIChatClient, default_ai_socket
 from .assistant_socket import AssistantSocketClient
 from .demo import iter_demo_events
 from .state import MobileShellState, reduce_assistant_event, state_debug_lines
@@ -20,12 +21,14 @@ class HestiaMobileCanvas(Gtk.Application):
     def __init__(
         self,
         assistant_socket: Optional[str],
+        ai_socket: Optional[str],
         windowed: bool,
         demo_events: Optional[str] = None,
         demo_interval_ms: int = 1200,
     ) -> None:
         super().__init__(application_id="ai.hestia.MobileShell")
         self.assistant_socket = assistant_socket
+        self.ai_socket = ai_socket
         self.windowed = windowed
         self.demo_events = demo_events
         self.demo_interval_ms = demo_interval_ms
@@ -158,6 +161,8 @@ class HestiaMobileCanvas(Gtk.Application):
         if text:
             self._apply_event({"type": "hestia_mobile.submit_text", "text": text})
             entry.set_text("")
+            if self.ai_socket and not self.demo_events:
+                start_ai_chat_stream(self.ai_socket, text, self._apply_event_from_thread)
 
     def _on_key_press(self, _widget: Gtk.Widget, event: Gdk.EventKey) -> bool:
         if event.keyval == Gdk.KEY_Escape:
@@ -211,6 +216,28 @@ class HestiaMobileCanvas(Gtk.Application):
         self.chat_entry.set_visible(self.state.chat_visible and self.state.mode not in {"call_paused", "offline", "error"})
         self.chat_button.set_label("Close Chat" if self.state.chat_visible else "Chat")
         self.app_button.set_label("Close Apps" if self.state.app_interface_visible else "Apps")
+
+
+def start_ai_chat_stream(
+    socket_path: str,
+    text: str,
+    on_event: CallableEvent,
+) -> threading.Thread:
+    thread = threading.Thread(
+        target=_ai_chat_stream,
+        args=(socket_path, text, on_event),
+        daemon=True,
+    )
+    thread.start()
+    return thread
+
+
+def _ai_chat_stream(socket_path: str, text: str, on_event: CallableEvent) -> None:
+    try:
+        for event in AIChatClient(socket_path).iter_chat_events(text):
+            on_event(event)
+    except OSError as exc:
+        on_event({"type": "assistant.state", "state": "error", "message": f"chat socket unavailable: {exc}"})
 
 
 def start_assistant_socket_reader(
@@ -268,6 +295,7 @@ def default_assistant_socket() -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the Hestia Mobile AI canvas prototype")
     parser.add_argument("--assistant-socket", default=default_assistant_socket())
+    parser.add_argument("--ai-socket", default=str(default_ai_socket()), help="Bridge ai.sock for typed chat fallback submission")
     parser.add_argument("--windowed", action="store_true", help="Run in a normal window instead of fullscreen")
     parser.add_argument("--demo-events", help="Replay newline-delimited JSON events instead of connecting to assistant.sock")
     parser.add_argument("--demo-interval-ms", type=int, default=1200, help="Delay between demo events")
@@ -275,6 +303,7 @@ def main() -> int:
 
     app = HestiaMobileCanvas(
         args.assistant_socket,
+        args.ai_socket,
         args.windowed,
         demo_events=args.demo_events,
         demo_interval_ms=args.demo_interval_ms,

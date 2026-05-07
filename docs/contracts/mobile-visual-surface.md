@@ -25,6 +25,10 @@ Cards are selected for display by highest `priority`, then most recent update. U
 - Assistant event socket:
   - default: `$XDG_RUNTIME_DIR/hestia-shell/assistant.sock`
   - newline-delimited JSON frames
+- Typed chat socket:
+  - default: `$XDG_RUNTIME_DIR/hestia-shell/ai.sock`
+  - shell sends `chat` request frames with `messages`
+  - bridge returns `token` / `tool_call` / `tool_result` / `done` / `error`
 - Bridge health:
   - `http://127.0.0.1:8765/health`
 - Optional future call-state source:

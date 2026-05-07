@@ -209,10 +209,12 @@ See [`docs/acceptance/initial-prototype.md`](docs/acceptance/initial-prototype.m
 ## Relationship to other repos
 
 - `hestia-mobile`: integration/meta repo, manifests, probes, runbooks, release gates.
-- `hestia-ai-bridge`: local bridge, health endpoint, assistant socket.
+- `hestia-ai-bridge`: local bridge, health endpoint, assistant socket, and `/mobile_capabilities` discovery.
 - `unmute-streaming-client`: always-available voice client.
 - `hestia-shell`: desktop/laptop Quickshell shell and reference event/UI model.
 - `hestia-mobile-shell`: this repo; mobile-native AI-first visual layer.
+
+- [`docs/contracts/agent-phone-interface.md`](docs/contracts/agent-phone-interface.md) defines the local-only agent-facing phone UI contract, including the allowed visual verbs, `assistant.sock`, `ai.sock`, protected modes, and `/mobile_capabilities` discovery.
 
 ## Product target
 

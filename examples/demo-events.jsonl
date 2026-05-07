@@ -1,4 +1,7 @@
 {"type":"assistant.state","state":"listening"}
+{"type":"hestia_mobile.toggle_debug"}
+{"type":"hestia_mobile.open_chat"}
+{"type":"hestia_mobile.submit_text","text":"What's next?"}
 {"type":"assistant.state","state":"thinking"}
 {"type":"assistant.tool_call","name":"calendar","status":"running"}
 {"type":"hestia_mobile.show_tool_status","name":"calendar","status":"running","body":"Checking today's schedule"}

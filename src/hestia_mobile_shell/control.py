@@ -82,6 +82,14 @@ def _build_parser(include_socket: bool) -> argparse.ArgumentParser:
     subparsers.add_parser("call-inactive", help="Leave phone-call protected mode")
     subparsers.add_parser("open-apps", help="Open normal app interface placeholder")
     subparsers.add_parser("close-apps", help="Close normal app interface placeholder")
+    subparsers.add_parser("toggle-debug", help="Toggle debug/event journal overlay")
+    set_debug = subparsers.add_parser("set-debug", help="Set debug/event journal overlay visibility")
+    set_debug.add_argument("visible", choices=["on", "off", "true", "false", "1", "0"])
+    subparsers.add_parser("clear-events", help="Clear debug event journal")
+    subparsers.add_parser("open-chat", help="Open chat fallback surface")
+    subparsers.add_parser("close-chat", help="Close chat fallback surface")
+    text = subparsers.add_parser("text", help="Submit one fallback text message")
+    text.add_argument("text")
 
     raw = subparsers.add_parser("raw", help="Send a raw JSON object event")
     raw.add_argument("json_event")
@@ -145,6 +153,18 @@ def _event_from_args(parser: argparse.ArgumentParser, args: argparse.Namespace) 
         return {"type": "hestia_mobile.open_app_interface"}
     if command == "close-apps":
         return {"type": "hestia_mobile.close_app_interface"}
+    if command == "toggle-debug":
+        return {"type": "hestia_mobile.toggle_debug"}
+    if command == "set-debug":
+        return {"type": "hestia_mobile.set_debug", "visible": args.visible in {"on", "true", "1"}}
+    if command == "clear-events":
+        return {"type": "hestia_mobile.clear_event_journal"}
+    if command == "open-chat":
+        return {"type": "hestia_mobile.open_chat"}
+    if command == "close-chat":
+        return {"type": "hestia_mobile.close_chat"}
+    if command == "text":
+        return {"type": "hestia_mobile.submit_text", "text": args.text}
     if command == "raw":
         try:
             event = json.loads(args.json_event)

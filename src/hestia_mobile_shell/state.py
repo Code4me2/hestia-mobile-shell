@@ -38,6 +38,9 @@ class MobileShellState:
     current_material: Optional[str] = None
     tool_status: Optional[str] = None
     app_interface_visible: bool = False
+    chat_visible: bool = False
+    debug_visible: bool = False
+    event_journal: tuple[str, ...] = ()
     materials: tuple[VisualMaterial, ...] = ()
     material_sequence: int = 0
 
@@ -62,6 +65,16 @@ def reduce_assistant_event(
 ) -> MobileShellState:
     """Reduce a normalized assistant/mobile event into mobile canvas state."""
 
+    next_state = _reduce_assistant_event_without_journal(state, event)
+    if str(event.get("type", "")) == "hestia_mobile.clear_event_journal":
+        return replace(next_state, event_journal=())
+    return _append_event_journal(next_state, event)
+
+
+def _reduce_assistant_event_without_journal(
+    state: MobileShellState,
+    event: Mapping[str, Any],
+) -> MobileShellState:
     event_type = str(event.get("type", ""))
 
     if event_type == "assistant.state":
@@ -128,6 +141,40 @@ def reduce_assistant_event(
             body=_optional_string(event.get("body")),
         )
 
+    if event_type == "hestia_mobile.open_chat":
+        return _sync_material_mode(replace(state, chat_visible=True))
+
+    if event_type == "hestia_mobile.close_chat":
+        return _sync_material_mode(replace(state, chat_visible=False))
+
+    if event_type == "hestia_mobile.submit_text":
+        text = str(event.get("text") or "").strip()
+        if not text:
+            return state
+        return _upsert_material(
+            replace(
+                state,
+                chat_visible=True,
+                assistant_state="thinking",
+                status_text="Thinking",
+            ),
+            VisualMaterial(
+                id="chat:last_user",
+                kind="transcript",
+                title=f"You: {text}",
+                priority=55,
+            ),
+        )
+
+    if event_type == "hestia_mobile.toggle_debug":
+        return replace(state, debug_visible=not state.debug_visible)
+
+    if event_type == "hestia_mobile.set_debug":
+        return replace(state, debug_visible=bool(event.get("visible", False)))
+
+    if event_type == "hestia_mobile.clear_event_journal":
+        return replace(state, event_journal=())
+
     if event_type == "assistant.availability":
         available = bool(event.get("available", True))
         reason = str(event.get("reason", ""))
@@ -178,6 +225,8 @@ def _state_for_assistant_lifecycle(
     mode, status_text = mapping.get(assistant_state, ("blank", "Listening when needed"))
     if state.app_interface_visible and mode not in {"call_paused", "offline", "error"}:
         mode = "app_interface"
+    elif state.chat_visible and mode not in {"call_paused", "offline", "error"}:
+        mode = "chat"
     elif state.primary_material and mode == "blank":
         mode = "material"
     return _sync_material_mode(
@@ -269,6 +318,8 @@ def _sync_material_mode(
         mode = state.mode
     elif state.app_interface_visible:
         mode = "app_interface"
+    elif state.chat_visible:
+        mode = "chat"
     elif primary:
         mode = "material"
     elif state.mode in {"listening", "thinking", "speaking", "interrupted"}:
@@ -276,6 +327,47 @@ def _sync_material_mode(
     else:
         mode = "blank"
     return replace(state, mode=mode, current_material=current_material)
+
+
+def state_debug_lines(state: MobileShellState) -> tuple[str, ...]:
+    primary = state.primary_material
+    primary_label = f"{primary.id}/{primary.kind}" if primary else "none"
+    lines = [
+        f"mode={state.mode}",
+        f"assistant_state={state.assistant_state}",
+        f"status={state.status_text}",
+        f"primary_material={primary_label}",
+        f"materials={len(state.materials)}",
+        f"app_interface_visible={state.app_interface_visible}",
+        f"chat_visible={state.chat_visible}",
+        f"debug_visible={state.debug_visible}",
+    ]
+    lines.extend(f"event[{index}]={entry}" for index, entry in enumerate(state.event_journal[-6:], start=1))
+    return tuple(lines)
+
+
+def _append_event_journal(state: MobileShellState, event: Mapping[str, Any]) -> MobileShellState:
+    summary = _event_summary(event)
+    if not summary:
+        return state
+    return replace(state, event_journal=(state.event_journal + (summary,))[-12:])
+
+
+def _event_summary(event: Mapping[str, Any]) -> str:
+    event_type = str(event.get("type") or "").strip()
+    if not event_type:
+        return "unknown"
+    suffix = ""
+    if event_type == "assistant.state":
+        suffix = str(event.get("state") or "").strip()
+    elif event_type == "assistant.availability":
+        reason = str(event.get("reason") or "").strip()
+        suffix = reason or str(event.get("available") or "").strip()
+    elif event_type in {"hestia_mobile.show_card", "hestia_mobile.update_card", "hestia_mobile.dismiss_card", "hestia_mobile.show_confirmation"}:
+        suffix = str(event.get("id") or "").strip()
+    elif event_type in {"assistant.tool_call", "hestia_mobile.show_tool_status"}:
+        suffix = str(event.get("name") or "").strip()
+    return f"{event_type} {suffix}".strip()
 
 
 def _current_material_text(state: MobileShellState) -> Optional[str]:

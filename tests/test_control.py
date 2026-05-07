@@ -136,6 +136,16 @@ def test_build_app_interface_events():
     assert build_event(["close-apps"]) == {"type": "hestia_mobile.close_app_interface"}
 
 
+def test_build_debug_and_chat_events():
+    assert build_event(["toggle-debug"]) == {"type": "hestia_mobile.toggle_debug"}
+    assert build_event(["set-debug", "on"]) == {"type": "hestia_mobile.set_debug", "visible": True}
+    assert build_event(["set-debug", "off"]) == {"type": "hestia_mobile.set_debug", "visible": False}
+    assert build_event(["clear-events"]) == {"type": "hestia_mobile.clear_event_journal"}
+    assert build_event(["open-chat"]) == {"type": "hestia_mobile.open_chat"}
+    assert build_event(["close-chat"]) == {"type": "hestia_mobile.close_chat"}
+    assert build_event(["text", "hello shell"]) == {"type": "hestia_mobile.submit_text", "text": "hello shell"}
+
+
 def test_build_raw_json_event():
     assert build_event(["raw", '{"type":"hestia_mobile.show_card","id":"raw","title":"Raw"}']) == {
         "type": "hestia_mobile.show_card",

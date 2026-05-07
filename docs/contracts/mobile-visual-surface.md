@@ -13,6 +13,10 @@ The first supported event set is intentionally small:
 | `hestia_mobile.dismiss_card` | remove one card by `id`; no `id` clears all cards |
 | `hestia_mobile.show_confirmation` | show confirm/cancel material with constrained actions |
 | `hestia_mobile.show_tool_status` | show/update a tool progress material |
+| `hestia_mobile.open_chat` / `close_chat` | open/close the secondary chat fallback |
+| `hestia_mobile.submit_text` | local prototype text fallback submission |
+| `hestia_mobile.toggle_debug` / `set_debug` | show/hide the debug/event journal overlay |
+| `hestia_mobile.clear_event_journal` | clear recent local event history |
 
 Cards are selected for display by highest `priority`, then most recent update. UI code should render the reducer state; it should not decide business behavior itself.
 
@@ -35,6 +39,7 @@ Cards are selected for display by highest `priority`, then most recent update. U
 | `thinking` | Assistant is processing. |
 | `speaking` | Assistant is speaking. |
 | `material` | AI has relevant text/card/tool material to show. |
+| `chat` | Secondary text/chat fallback is explicitly open. |
 | `app_interface` | Normal app interface has been explicitly opened. |
 | `call_paused` | Assistant paused due to active phone call. |
 | `offline` | Backend or local bridge unavailable. |
@@ -58,6 +63,12 @@ Cards are selected for display by highest `priority`, then most recent update. U
 ```json
 { "type": "hestia_mobile.open_app_interface" }
 { "type": "hestia_mobile.close_app_interface" }
+{ "type": "hestia_mobile.open_chat" }
+{ "type": "hestia_mobile.submit_text", "text": "What's next?" }
+{ "type": "hestia_mobile.close_chat" }
+{ "type": "hestia_mobile.toggle_debug" }
+{ "type": "hestia_mobile.set_debug", "visible": true }
+{ "type": "hestia_mobile.clear_event_journal" }
 ```
 
 ## Visual verbs
@@ -72,6 +83,11 @@ dismiss_card
 show_tool_status
 open_app_interface
 close_app_interface
+open_chat
+close_chat
+submit_text
+set_debug_overlay
+clear_event_journal
 confirm_action
 set_surface_state
 ```

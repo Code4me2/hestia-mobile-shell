@@ -17,9 +17,11 @@ This is an initial safe prototype/skeleton:
 
 - tested pure state reducer for normalized `assistant.*` events;
 - tested visual material/card reducer for constrained `show_card`, `update_card`, `dismiss_card`, `show_confirmation`, and `show_tool_status` verbs;
+- tested chat/text fallback and debug event journal state;
+- mock assistant socket plus manual control CLI for no-phone testing;
 - runtime/session probe for PureOS/Phosh compatibility checks;
 - GTK3 fullscreen/near-fullscreen prototype that can be launched and killed without replacing Phosh;
-- architecture and visual contract docs.
+- architecture, visual contract, runbook, and acceptance docs.
 
 It does **not** replace Phosh yet.
 
@@ -137,6 +139,11 @@ PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assis
 PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock dismiss-card --id next-event
 PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock call-active
 PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock call-inactive
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock open-chat
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock text "What's next?"
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock close-chat
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock toggle-debug
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock clear-events
 PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock open-apps
 PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock close-apps
 ```
@@ -156,6 +163,30 @@ The mobile canvas accepts a small, constrained visual verb set. These are local 
 ```
 
 Cards are prioritized by `priority`; ties use the most recently updated card. `dismiss_card` without an `id` clears all materials. The GTK prototype renders the primary material card plus action labels, while the pure reducer remains fully unit-tested.
+
+## Chat fallback and debug overlay
+
+The chat fallback is explicit and secondary:
+
+```json
+{"type":"hestia_mobile.open_chat"}
+{"type":"hestia_mobile.submit_text","text":"What's next?"}
+{"type":"hestia_mobile.close_chat"}
+```
+
+Submitted text is currently a local prototype event: it opens the chat fallback, records a user transcript material, and moves the visible state to `Thinking`. Backend delivery for typed text is intentionally not claimed yet.
+
+The debug overlay is hidden by default and can be toggled with `F12` or events:
+
+```json
+{"type":"hestia_mobile.toggle_debug"}
+{"type":"hestia_mobile.set_debug","visible":true}
+{"type":"hestia_mobile.clear_event_journal"}
+```
+
+It shows the current mode, assistant state, primary material, material count, app/chat/debug visibility, and recent event journal.
+
+See [`docs/acceptance/initial-prototype.md`](docs/acceptance/initial-prototype.md) for the current prototype acceptance checklist.
 
 ## Relationship to other repos
 

@@ -13,7 +13,7 @@ from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from .assistant_socket import AssistantSocketClient
 from .demo import iter_demo_events
-from .state import MobileShellState, reduce_assistant_event
+from .state import MobileShellState, reduce_assistant_event, state_debug_lines
 
 
 class HestiaMobileCanvas(Gtk.Application):
@@ -34,7 +34,10 @@ class HestiaMobileCanvas(Gtk.Application):
         self.status_label: Optional[Gtk.Label] = None
         self.material_label: Optional[Gtk.Label] = None
         self.action_label: Optional[Gtk.Label] = None
+        self.debug_label: Optional[Gtk.Label] = None
+        self.chat_entry: Optional[Gtk.Entry] = None
         self.app_button: Optional[Gtk.Button] = None
+        self.chat_button: Optional[Gtk.Button] = None
 
     def do_activate(self) -> None:  # type: ignore[override]
         self.window = Gtk.ApplicationWindow(application=self)
@@ -73,15 +76,37 @@ class HestiaMobileCanvas(Gtk.Application):
         self.action_label.get_style_context().add_class("material-actions")
         canvas.pack_start(self.action_label, False, False, 0)
 
+        self.chat_entry = Gtk.Entry()
+        self.chat_entry.set_placeholder_text("Type fallback message…")
+        self.chat_entry.connect("activate", self._submit_chat_text)
+        canvas.pack_start(self.chat_entry, False, False, 0)
+
         overlay.add(canvas)
 
+        self.debug_label = Gtk.Label(label="")
+        self.debug_label.set_halign(Gtk.Align.START)
+        self.debug_label.set_valign(Gtk.Align.START)
+        self.debug_label.set_margin_start(12)
+        self.debug_label.set_margin_top(12)
+        self.debug_label.set_line_wrap(True)
+        self.debug_label.set_max_width_chars(44)
+        self.debug_label.get_style_context().add_class("debug-panel")
+        overlay.add_overlay(self.debug_label)
+
+        controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        controls.set_halign(Gtk.Align.END)
+        controls.set_valign(Gtk.Align.END)
+        controls.set_margin_end(18)
+        controls.set_margin_bottom(18)
+
+        self.chat_button = Gtk.Button(label="Chat")
+        self.chat_button.connect("clicked", self._toggle_chat)
+        controls.pack_start(self.chat_button, False, False, 0)
+
         self.app_button = Gtk.Button(label="Apps")
-        self.app_button.set_halign(Gtk.Align.END)
-        self.app_button.set_valign(Gtk.Align.END)
-        self.app_button.set_margin_end(18)
-        self.app_button.set_margin_bottom(18)
         self.app_button.connect("clicked", self._toggle_app_interface)
-        overlay.add_overlay(self.app_button)
+        controls.pack_start(self.app_button, False, False, 0)
+        overlay.add_overlay(controls)
 
         self._install_css()
         self.window.show_all()
@@ -103,6 +128,8 @@ class HestiaMobileCanvas(Gtk.Application):
             .title { font-size: 34px; font-weight: 700; letter-spacing: 0.08em; }
             .material-card { background: rgba(255,255,255,0.08); border-radius: 22px; padding: 18px; }
             .material-actions { color: #b8c7ff; font-size: 14px; }
+            .debug-panel { background: rgba(30,40,60,0.72); color: #b8c7ff; font-family: monospace; font-size: 11px; border-radius: 12px; padding: 10px; }
+            entry { border-radius: 18px; padding: 10px 12px; }
             button { border-radius: 999px; padding: 14px 18px; }
             """
         )
@@ -122,9 +149,22 @@ class HestiaMobileCanvas(Gtk.Application):
         )
         self._apply_event({"type": event_type})
 
+    def _toggle_chat(self, _button: Gtk.Button) -> None:
+        event_type = "hestia_mobile.close_chat" if self.state.chat_visible else "hestia_mobile.open_chat"
+        self._apply_event({"type": event_type})
+
+    def _submit_chat_text(self, entry: Gtk.Entry) -> None:
+        text = entry.get_text().strip()
+        if text:
+            self._apply_event({"type": "hestia_mobile.submit_text", "text": text})
+            entry.set_text("")
+
     def _on_key_press(self, _widget: Gtk.Widget, event: Gdk.EventKey) -> bool:
         if event.keyval == Gdk.KEY_Escape:
             self.quit()
+            return True
+        if event.keyval == Gdk.KEY_F12:
+            self._apply_event({"type": "hestia_mobile.toggle_debug"})
             return True
         return False
 
@@ -137,7 +177,15 @@ class HestiaMobileCanvas(Gtk.Application):
         return False
 
     def _render(self) -> None:
-        if self.status_label is None or self.material_label is None or self.action_label is None or self.app_button is None:
+        if (
+            self.status_label is None
+            or self.material_label is None
+            or self.action_label is None
+            or self.debug_label is None
+            or self.chat_entry is None
+            or self.app_button is None
+            or self.chat_button is None
+        ):
             return
         self.status_label.set_text(self.state.status_text)
         primary = self.state.primary_material
@@ -150,12 +198,18 @@ class HestiaMobileCanvas(Gtk.Application):
             actions = ""
         if self.state.tool_status and self.state.mode not in {"call_paused", "offline", "error"} and (not primary or primary.kind != "tool_status"):
             material = f"{material}\n{self.state.tool_status}" if material else self.state.tool_status
+        if self.state.chat_visible and self.state.mode not in {"call_paused", "offline", "error"}:
+            material = f"Chat fallback\n\n{material}" if material else "Chat fallback"
         if self.state.app_interface_visible and self.state.mode not in {"call_paused", "offline", "error"}:
             material = f"Normal app interface placeholder\n\n{material}" if material else "Normal app interface placeholder"
         self.material_label.set_text(material)
         self.material_label.set_visible(bool(material))
         self.action_label.set_text(actions)
         self.action_label.set_visible(bool(actions))
+        self.debug_label.set_text("\n".join(state_debug_lines(self.state)))
+        self.debug_label.set_visible(self.state.debug_visible)
+        self.chat_entry.set_visible(self.state.chat_visible and self.state.mode not in {"call_paused", "offline", "error"})
+        self.chat_button.set_label("Close Chat" if self.state.chat_visible else "Chat")
         self.app_button.set_label("Close Apps" if self.state.app_interface_visible else "Apps")
 
 

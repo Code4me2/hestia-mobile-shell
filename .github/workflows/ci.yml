@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Tests and static validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y desktop-file-utils systemd
+          python -m pip install --upgrade pip pytest
+      - name: Run tests
+        run: PYTHONPATH=src python -m pytest -q
+      - name: Compile Python modules
+        run: PYTHONPATH=src python -m py_compile src/hestia_mobile_shell/*.py
+      - name: Validate shell scripts
+        run: bash -n scripts/*.sh
+      - name: Validate desktop entry
+        run: desktop-file-validate packaging/hestia-mobile-shell.desktop
+      - name: Validate user service template
+        run: systemd-analyze --user verify packaging/hestia-mobile-shell.service
+      - name: Check whitespace
+        run: git diff --check

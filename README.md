@@ -16,6 +16,7 @@ This repo is intentionally separate from desktop/laptop [`hestia-shell`](https:/
 This is an initial safe prototype/skeleton:
 
 - tested pure state reducer for normalized `assistant.*` events;
+- tested visual material/card reducer for constrained `show_card`, `update_card`, `dismiss_card`, `show_confirmation`, and `show_tool_status` verbs;
 - runtime/session probe for PureOS/Phosh compatibility checks;
 - GTK3 fullscreen/near-fullscreen prototype that can be launched and killed without replacing Phosh;
 - architecture and visual contract docs.
@@ -111,6 +112,20 @@ PYTHONPATH=src python3 -m hestia_mobile_shell.app \
 ```
 
 This is closer to live operation than `--demo-events`: the app sends the same subscribe frame and reads the same newline-delimited JSON socket stream it will use with `hestia-ai-bridge`.
+
+## Visual material verbs
+
+The mobile canvas accepts a small, constrained visual verb set. These are local shell events, not arbitrary UI generation:
+
+```json
+{"type":"hestia_mobile.show_card","id":"next-event","title":"Next event","body":"11:30 — Design review","priority":60}
+{"type":"hestia_mobile.update_card","id":"next-event","body":"11:30 — Design review\nPrep notes ready"}
+{"type":"hestia_mobile.dismiss_card","id":"next-event"}
+{"type":"hestia_mobile.show_confirmation","id":"send-note","title":"Send note?","confirm_label":"Send","cancel_label":"Not now"}
+{"type":"hestia_mobile.show_tool_status","name":"calendar","status":"running","body":"Checking schedule"}
+```
+
+Cards are prioritized by `priority`; ties use the most recently updated card. `dismiss_card` without an `id` clears all materials. The GTK prototype renders the primary material card plus action labels, while the pure reducer remains fully unit-tested.
 
 ## Relationship to other repos
 

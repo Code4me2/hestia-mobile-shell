@@ -1,9 +1,11 @@
 {"type":"assistant.state","state":"listening"}
 {"type":"assistant.state","state":"thinking"}
 {"type":"assistant.tool_call","name":"calendar","status":"running"}
-{"type":"assistant.transcript.assistant_delta","text":"Your next meeting is at 4:00 PM. I can bring up the route when you leave."}
+{"type":"hestia_mobile.show_tool_status","name":"calendar","status":"running","body":"Checking today's schedule"}
+{"type":"hestia_mobile.show_card","id":"next-event","title":"Next event","body":"11:30 — Design review with Sam","priority":60,"actions":[{"id":"open_calendar","label":"Open Calendar"}]}
+{"type":"hestia_mobile.update_card","id":"next-event","body":"11:30 — Design review with Sam\nPrep: mobile shell card model","priority":65}
+{"type":"hestia_mobile.show_confirmation","id":"send-note","title":"Send prep note?","body":"I can send Sam the updated prototype notes.","confirm_label":"Send","cancel_label":"Not now"}
 {"type":"assistant.state","state":"speaking"}
+{"type":"assistant.transcript.assistant_delta","text":"I found your next event and prepared the note."}
+{"type":"hestia_mobile.dismiss_card","id":"send-note"}
 {"type":"assistant.state","state":"idle"}
-{"type":"hestia_mobile.open_app_interface"}
-{"type":"assistant.transcript.assistant_delta","text":"Normal apps are available here, but Hestia returns to the blank AI canvas when closed."}
-{"type":"hestia_mobile.close_app_interface"}

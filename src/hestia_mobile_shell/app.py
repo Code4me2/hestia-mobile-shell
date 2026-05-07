@@ -33,6 +33,7 @@ class HestiaMobileCanvas(Gtk.Application):
         self.window: Optional[Gtk.ApplicationWindow] = None
         self.status_label: Optional[Gtk.Label] = None
         self.material_label: Optional[Gtk.Label] = None
+        self.action_label: Optional[Gtk.Label] = None
         self.app_button: Optional[Gtk.Button] = None
 
     def do_activate(self) -> None:  # type: ignore[override]
@@ -63,7 +64,14 @@ class HestiaMobileCanvas(Gtk.Application):
         self.material_label = Gtk.Label(label="")
         self.material_label.set_line_wrap(True)
         self.material_label.set_max_width_chars(32)
+        self.material_label.get_style_context().add_class("material-card")
         canvas.pack_start(self.material_label, False, False, 0)
+
+        self.action_label = Gtk.Label(label="")
+        self.action_label.set_line_wrap(True)
+        self.action_label.set_max_width_chars(32)
+        self.action_label.get_style_context().add_class("material-actions")
+        canvas.pack_start(self.action_label, False, False, 0)
 
         overlay.add(canvas)
 
@@ -76,8 +84,8 @@ class HestiaMobileCanvas(Gtk.Application):
         overlay.add_overlay(self.app_button)
 
         self._install_css()
-        self._render()
         self.window.show_all()
+        self._render()
         if not self.windowed:
             self.window.fullscreen()
 
@@ -93,6 +101,8 @@ class HestiaMobileCanvas(Gtk.Application):
             window { background: #05060a; color: #f5f7ff; }
             label { color: #f5f7ff; font-size: 18px; }
             .title { font-size: 34px; font-weight: 700; letter-spacing: 0.08em; }
+            .material-card { background: rgba(255,255,255,0.08); border-radius: 22px; padding: 18px; }
+            .material-actions { color: #b8c7ff; font-size: 14px; }
             button { border-radius: 999px; padding: 14px 18px; }
             """
         )
@@ -127,15 +137,25 @@ class HestiaMobileCanvas(Gtk.Application):
         return False
 
     def _render(self) -> None:
-        if self.status_label is None or self.material_label is None or self.app_button is None:
+        if self.status_label is None or self.material_label is None or self.action_label is None or self.app_button is None:
             return
         self.status_label.set_text(self.state.status_text)
+        primary = self.state.primary_material
         material = self.state.current_material or ""
-        if self.state.tool_status:
+        actions = ""
+        if primary and primary.actions:
+            actions = " · ".join(action.get("label", "") for action in primary.actions if action.get("label"))
+        if self.state.mode in {"call_paused", "offline", "error"}:
+            material = ""
+            actions = ""
+        if self.state.tool_status and self.state.mode not in {"call_paused", "offline", "error"} and (not primary or primary.kind != "tool_status"):
             material = f"{material}\n{self.state.tool_status}" if material else self.state.tool_status
-        if self.state.app_interface_visible:
+        if self.state.app_interface_visible and self.state.mode not in {"call_paused", "offline", "error"}:
             material = f"Normal app interface placeholder\n\n{material}" if material else "Normal app interface placeholder"
         self.material_label.set_text(material)
+        self.material_label.set_visible(bool(material))
+        self.action_label.set_text(actions)
+        self.action_label.set_visible(bool(actions))
         self.app_button.set_label("Close Apps" if self.state.app_interface_visible else "Apps")
 
 

@@ -2,6 +2,20 @@
 
 The mobile visual layer consumes normalized local assistant events. It must not bind directly to raw backend or realtime protocol details.
 
+## Supported visual verbs
+
+The first supported event set is intentionally small:
+
+| Event | Purpose |
+| --- | --- |
+| `hestia_mobile.show_card` | create/replace one material card by `id` |
+| `hestia_mobile.update_card` | update fields on an existing card, creating it if needed |
+| `hestia_mobile.dismiss_card` | remove one card by `id`; no `id` clears all cards |
+| `hestia_mobile.show_confirmation` | show confirm/cancel material with constrained actions |
+| `hestia_mobile.show_tool_status` | show/update a tool progress material |
+
+Cards are selected for display by highest `priority`, then most recent update. UI code should render the reducer state; it should not decide business behavior itself.
+
 ## Inputs
 
 - Assistant event socket:

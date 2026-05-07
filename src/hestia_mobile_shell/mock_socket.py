@@ -38,6 +38,8 @@ class MockAssistantSocketServer:
         self._stop = threading.Event()
         self._started = threading.Event()
         self._connections: list[socket.socket] = []
+        self._subscribers: list[socket.socket] = []
+        self._lock = threading.Lock()
         self._bound_device_inode: Optional[tuple[int, int]] = None
 
     def __enter__(self) -> "MockAssistantSocketServer":
@@ -126,32 +128,58 @@ class MockAssistantSocketServer:
             threading.Thread(target=self._handle_client, args=(conn,), daemon=True).start()
 
     def _handle_client(self, conn: socket.socket) -> None:
+        subscribed = False
         try:
-            if not self._capture_subscribe(conn):
+            subscribed, incoming_events = self._capture_first_frames(conn)
+            if not subscribed:
+                for event in incoming_events:
+                    self._broadcast(event)
                 return
+            with self._lock:
+                self._subscribers.append(conn)
             for event in self.events:
                 if self._stop.is_set():
                     return
                 conn.sendall(encode_event(event))
                 if self.interval_seconds:
                     time.sleep(self.interval_seconds)
+            while not self._stop.is_set():
+                time.sleep(0.05)
         except OSError:
             return
         finally:
+            if subscribed:
+                with self._lock:
+                    self._subscribers = [subscriber for subscriber in self._subscribers if subscriber is not conn]
             try:
                 conn.close()
             except OSError:
                 pass
 
-    def _capture_subscribe(self, conn: socket.socket) -> bool:
+    def _broadcast(self, event: Mapping[str, object]) -> None:
+        payload = encode_event(event)
+        with self._lock:
+            subscribers = list(self._subscribers)
+        stale: list[socket.socket] = []
+        for subscriber in subscribers:
+            try:
+                subscriber.sendall(payload)
+            except OSError:
+                stale.append(subscriber)
+        if stale:
+            with self._lock:
+                self._subscribers = [subscriber for subscriber in self._subscribers if subscriber not in stale]
+
+    def _capture_first_frames(self, conn: socket.socket) -> tuple[bool, list[dict[str, object]]]:
         conn.settimeout(0.5)
         try:
             raw = conn.recv(4096)
         except socket.timeout:
-            return False
+            return False, []
         finally:
             conn.settimeout(None)
         subscribed = False
+        incoming_events: list[dict[str, object]] = []
         for line in raw.splitlines():
             if not line.strip():
                 continue
@@ -160,10 +188,12 @@ class MockAssistantSocketServer:
             except (UnicodeDecodeError, json.JSONDecodeError):
                 continue
             if isinstance(decoded, dict):
-                self.subscribe_messages.append(decoded)
                 if decoded.get("type") == "subscribe":
+                    self.subscribe_messages.append(decoded)
                     subscribed = True
-        return subscribed
+                else:
+                    incoming_events.append(decoded)
+        return subscribed, incoming_events
 
 
 def main() -> int:

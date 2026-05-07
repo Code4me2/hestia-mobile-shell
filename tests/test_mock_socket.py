@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import socket
+import threading
 from pathlib import Path
 
 from hestia_mobile_shell.assistant_socket import AssistantSocketClient
+from hestia_mobile_shell.control import send_event
 from hestia_mobile_shell.mock_socket import MockAssistantSocketServer, encode_event
 
 
@@ -125,6 +127,30 @@ def test_mock_server_accepts_raw_socket_client_after_subscribe(tmp_path: Path):
             client.close()
 
     assert payload == encode_event(event)
+
+
+def test_mock_server_broadcasts_control_events_to_subscribers(tmp_path: Path):
+    socket_path = tmp_path / "assistant.sock"
+    initial = {"type": "assistant.state", "state": "listening"}
+    injected = {"type": "assistant.state", "state": "thinking"}
+    received: list[dict[str, object]] = []
+    subscriber_ready = threading.Event()
+
+    def subscriber() -> None:
+        for event in AssistantSocketClient(str(socket_path)).iter_events():
+            subscriber_ready.set()
+            received.append(event)
+            if event == injected:
+                break
+
+    with MockAssistantSocketServer(socket_path, [initial], interval_seconds=0):
+        thread = threading.Thread(target=subscriber, daemon=True)
+        thread.start()
+        assert subscriber_ready.wait(timeout=1)
+        send_event(socket_path, injected)
+        thread.join(timeout=1)
+
+    assert injected in received
 
 
 def test_stop_does_not_unlink_replaced_path(tmp_path: Path):

@@ -113,6 +113,36 @@ PYTHONPATH=src python3 -m hestia_mobile_shell.app \
 
 This is closer to live operation than `--demo-events`: the app sends the same subscribe frame and reads the same newline-delimited JSON socket stream it will use with `hestia-ai-bridge`.
 
+## Manual control CLI
+
+For fast offline testing, send one event into a running mock socket or live `assistant.sock`:
+
+```bash
+PYTHONPATH=src python3 -m hestia_mobile_shell.control \
+  --socket /tmp/hestia-assistant.sock \
+  show-card \
+  --id next-event \
+  --title "Next event" \
+  --body "11:30 — Design review" \
+  --priority 60
+```
+
+Useful commands:
+
+```bash
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock state listening
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock state thinking
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock tool-status --name calendar --status running --body "Checking schedule"
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock show-confirmation --id send-note --title "Send note?" --confirm-label Send --cancel-label "Not now"
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock dismiss-card --id next-event
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock call-active
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock call-inactive
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock open-apps
+PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock close-apps
+```
+
+When installed as a package, use `hestia-mobile-control` instead of `PYTHONPATH=src python3 -m hestia_mobile_shell.control`.
+
 ## Visual material verbs
 
 The mobile canvas accepts a small, constrained visual verb set. These are local shell events, not arbitrary UI generation:

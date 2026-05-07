@@ -19,6 +19,7 @@ where = ["src"]
 
 [project.scripts]
 hestia-mobile-shell = "hestia_mobile_shell.app:main"
+hestia-mobile-mock-socket = "hestia_mobile_shell.mock_socket:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

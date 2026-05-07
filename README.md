@@ -90,6 +90,28 @@ Optional non-fullscreen mode for safer development:
 PYTHONPATH=src python3 -m hestia_mobile_shell.app --windowed
 ```
 
+## Mock assistant socket
+
+For testing the real Unix-socket subscription/read path without the phone stack, run a mock `assistant.sock` server in one terminal:
+
+```bash
+cd /home/purism/projects/ai-phone-review/hestia-mobile-shell
+PYTHONPATH=src python3 -m hestia_mobile_shell.mock_socket \
+  --socket /tmp/hestia-assistant.sock \
+  --events examples/demo-events.jsonl \
+  --interval-ms 900
+```
+
+Then run the app against that socket in another terminal:
+
+```bash
+PYTHONPATH=src python3 -m hestia_mobile_shell.app \
+  --windowed \
+  --assistant-socket /tmp/hestia-assistant.sock
+```
+
+This is closer to live operation than `--demo-events`: the app sends the same subscribe frame and reads the same newline-delimited JSON socket stream it will use with `hestia-ai-bridge`.
+
 ## Relationship to other repos
 
 - `hestia-mobile`: integration/meta repo, manifests, probes, runbooks, release gates.

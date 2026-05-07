@@ -12,7 +12,25 @@ chmod +x scripts/install-user-launchers.sh
 
 ## Manual development launch
 
-Windowed, with offline demo events:
+Mock assistant socket, closest to live operation without the phone stack:
+
+```bash
+cd /home/purism/projects/ai-phone-review/hestia-mobile-shell
+PYTHONPATH=src python3 -m hestia_mobile_shell.mock_socket \
+  --socket /tmp/hestia-assistant.sock \
+  --events examples/demo-events.jsonl \
+  --interval-ms 900
+```
+
+In another terminal:
+
+```bash
+PYTHONPATH=src python3 -m hestia_mobile_shell.app \
+  --windowed \
+  --assistant-socket /tmp/hestia-assistant.sock
+```
+
+Windowed, with internal offline demo events:
 
 ```bash
 cd /home/purism/projects/ai-phone-review/hestia-mobile-shell

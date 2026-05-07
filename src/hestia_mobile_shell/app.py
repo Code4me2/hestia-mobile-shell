@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import socket
 import threading
 from pathlib import Path
 from typing import Callable, Mapping, Optional
@@ -13,14 +11,24 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
+from .assistant_socket import AssistantSocketClient
+from .demo import iter_demo_events
 from .state import MobileShellState, reduce_assistant_event
 
 
 class HestiaMobileCanvas(Gtk.Application):
-    def __init__(self, assistant_socket: Optional[str], windowed: bool) -> None:
+    def __init__(
+        self,
+        assistant_socket: Optional[str],
+        windowed: bool,
+        demo_events: Optional[str] = None,
+        demo_interval_ms: int = 1200,
+    ) -> None:
         super().__init__(application_id="ai.hestia.MobileShell")
         self.assistant_socket = assistant_socket
         self.windowed = windowed
+        self.demo_events = demo_events
+        self.demo_interval_ms = demo_interval_ms
         self.state = MobileShellState.initial()
         self.window: Optional[Gtk.ApplicationWindow] = None
         self.status_label: Optional[Gtk.Label] = None
@@ -73,7 +81,9 @@ class HestiaMobileCanvas(Gtk.Application):
         if not self.windowed:
             self.window.fullscreen()
 
-        if self.assistant_socket:
+        if self.demo_events:
+            start_demo_replay(self.demo_events, self.demo_interval_ms, self._apply_event_from_thread)
+        elif self.assistant_socket:
             start_assistant_socket_reader(self.assistant_socket, self._apply_event_from_thread)
 
     def _install_css(self) -> None:
@@ -131,7 +141,7 @@ class HestiaMobileCanvas(Gtk.Application):
 
 def start_assistant_socket_reader(
     socket_path: str,
-    on_event: Callable[[Mapping[str, object]], None],
+    on_event: CallableEvent,
 ) -> threading.Thread:
     thread = threading.Thread(
         target=_assistant_socket_reader,
@@ -142,37 +152,38 @@ def start_assistant_socket_reader(
     return thread
 
 
+CallableEvent = Callable[[Mapping[str, object]], None]
+
+
 def _assistant_socket_reader(
     socket_path: str,
-    on_event: Callable[[Mapping[str, object]], None],
+    on_event: CallableEvent,
 ) -> None:
-    path = Path(socket_path)
-    if not path.exists():
-        on_event({"type": "assistant.state", "state": "offline"})
-        return
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-            client.connect(socket_path)
-            client.sendall(b'{"type":"subscribe"}\n')
-            buffer = b""
-            while True:
-                chunk = client.recv(4096)
-                if not chunk:
-                    on_event({"type": "assistant.state", "state": "offline"})
-                    return
-                buffer += chunk
-                while b"\n" in buffer:
-                    raw, buffer = buffer.split(b"\n", 1)
-                    if not raw.strip():
-                        continue
-                    try:
-                        event = json.loads(raw.decode("utf-8"))
-                    except json.JSONDecodeError:
-                        continue
-                    if isinstance(event, dict):
-                        on_event(event)
-    except OSError:
-        on_event({"type": "assistant.state", "state": "offline"})
+    for event in AssistantSocketClient(socket_path).iter_events():
+        on_event(event)
+
+
+def start_demo_replay(
+    demo_path: str,
+    interval_ms: int,
+    on_event: CallableEvent,
+) -> threading.Thread:
+    thread = threading.Thread(
+        target=_demo_replay,
+        args=(demo_path, interval_ms, on_event),
+        daemon=True,
+    )
+    thread.start()
+    return thread
+
+
+def _demo_replay(demo_path: str, interval_ms: int, on_event: CallableEvent) -> None:
+    import time
+
+    interval_seconds = max(interval_ms, 0) / 1000
+    for event in iter_demo_events(demo_path):
+        on_event(event)
+        time.sleep(interval_seconds)
 
 
 def default_assistant_socket() -> str:
@@ -184,9 +195,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the Hestia Mobile AI canvas prototype")
     parser.add_argument("--assistant-socket", default=default_assistant_socket())
     parser.add_argument("--windowed", action="store_true", help="Run in a normal window instead of fullscreen")
+    parser.add_argument("--demo-events", help="Replay newline-delimited JSON events instead of connecting to assistant.sock")
+    parser.add_argument("--demo-interval-ms", type=int, default=1200, help="Delay between demo events")
     args = parser.parse_args()
 
-    app = HestiaMobileCanvas(args.assistant_socket, args.windowed)
+    app = HestiaMobileCanvas(
+        args.assistant_socket,
+        args.windowed,
+        demo_events=args.demo_events,
+        demo_interval_ms=args.demo_interval_ms,
+    )
     return app.run([])
 
 

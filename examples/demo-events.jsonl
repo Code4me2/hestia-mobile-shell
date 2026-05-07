@@ -1,0 +1,9 @@
+{"type":"assistant.state","state":"listening"}
+{"type":"assistant.state","state":"thinking"}
+{"type":"assistant.tool_call","name":"calendar","status":"running"}
+{"type":"assistant.transcript.assistant_delta","text":"Your next meeting is at 4:00 PM. I can bring up the route when you leave."}
+{"type":"assistant.state","state":"speaking"}
+{"type":"assistant.state","state":"idle"}
+{"type":"hestia_mobile.open_app_interface"}
+{"type":"assistant.transcript.assistant_delta","text":"Normal apps are available here, but Hestia returns to the blank AI canvas when closed."}
+{"type":"hestia_mobile.close_app_interface"}

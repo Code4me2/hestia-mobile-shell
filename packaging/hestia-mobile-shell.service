@@ -1,0 +1,16 @@
+[Unit]
+Description=Hestia Mobile Shell prototype
+Documentation=https://github.com/Code4me2/hestia-mobile-shell
+After=graphical-session.target hestia-ai-bridge.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/ai-phone-review/hestia-mobile-shell
+Environment=PYTHONPATH=src
+ExecStart=/usr/bin/python3 -m hestia_mobile_shell.app
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

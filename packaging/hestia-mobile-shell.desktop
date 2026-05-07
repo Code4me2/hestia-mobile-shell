@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Hestia Mobile Shell
+Comment=AI-primary Hestia Mobile canvas prototype
+Exec=env PYTHONPATH=/home/purism/projects/ai-phone-review/hestia-mobile-shell/src python3 -m hestia_mobile_shell.app
+Icon=applications-system
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=Hestia;AI;Voice;Mobile;
+StartupNotify=false

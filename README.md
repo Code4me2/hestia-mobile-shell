@@ -63,8 +63,19 @@ PYTHONPATH=src python3 -m pytest -q
 
 The first prototype is deliberately reversible. It runs as a GTK3 app inside the current Phosh session.
 
+Live assistant socket:
+
 ```bash
 PYTHONPATH=src python3 -m hestia_mobile_shell.app
+```
+
+Offline demo replay, useful when the phone/backend is unavailable:
+
+```bash
+PYTHONPATH=src python3 -m hestia_mobile_shell.app \
+  --windowed \
+  --demo-events examples/demo-events.jsonl \
+  --demo-interval-ms 900
 ```
 
 Exit with `Esc` or close the window. If launched fullscreen and you need to force-close it:

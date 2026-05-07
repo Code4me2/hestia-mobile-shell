@@ -17,5 +17,8 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[project.scripts]
+hestia-mobile-shell = "hestia_mobile_shell.app:main"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

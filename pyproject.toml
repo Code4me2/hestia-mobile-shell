@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hestia-mobile-shell"
+version = "0.1.0"
+description = "AI-primary mobile shell prototype for Hestia on PureOS/Phosh"
+requires-python = ">=3.9"
+readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+authors = [{name = "code4me2"}]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

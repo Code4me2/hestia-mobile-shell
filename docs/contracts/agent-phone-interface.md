@@ -27,6 +27,25 @@ GET http://127.0.0.1:8765/mobile_capabilities
 
 The response describes socket paths, supported assistant states, supported visual verbs, protected modes, forbidden behaviors, and sanitized orchestrator availability. It must not reveal raw upstream URLs, secrets, or exception details.
 
+## Agent adapter
+
+Agents should prefer the validated adapter over writing directly to `assistant.sock`:
+
+```bash
+PYTHONPATH=src python3 -m hestia_mobile_shell.agent_adapter show-card \
+  --id agent-demo \
+  --title "Agent control works" \
+  --body "This card was capability-checked before being sent."
+```
+
+The adapter fetches `http://127.0.0.1:8765/mobile_capabilities`, validates the interface name/version, enforces `transport: local-only`, rejects non-loopback HTTP capability URLs, refuses visual verbs not advertised by the phone, and then sends one newline-delimited JSON event to the advertised `assistant.sock`.
+
+The installed console script is:
+
+```bash
+hestia-mobile-agent --capabilities-url http://127.0.0.1:8765/mobile_capabilities open-chat
+```
+
 ## `assistant.sock` visual/event path
 
 Protocol: newline-delimited JSON over a Unix-domain socket.

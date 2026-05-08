@@ -214,7 +214,7 @@ See [`docs/acceptance/initial-prototype.md`](docs/acceptance/initial-prototype.m
 - `hestia-shell`: desktop/laptop Quickshell shell and reference event/UI model.
 - `hestia-mobile-shell`: this repo; mobile-native AI-first visual layer.
 
-- [`docs/contracts/agent-phone-interface.md`](docs/contracts/agent-phone-interface.md) defines the local-only agent-facing phone UI contract, including the allowed visual verbs, `assistant.sock`, `ai.sock`, protected modes, and `/mobile_capabilities` discovery.
+- [`docs/contracts/agent-phone-interface.md`](docs/contracts/agent-phone-interface.md) defines the local-only agent-facing phone UI contract, including the allowed visual verbs, `assistant.sock`, `ai.sock`, protected modes, `/mobile_capabilities` discovery, and the validated `hestia-mobile-agent` adapter CLI.
 
 ## Product target
 

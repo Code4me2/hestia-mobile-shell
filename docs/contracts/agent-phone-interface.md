@@ -14,6 +14,7 @@ Do not expose the phone-local Unix sockets over Tailscale or any remote network.
 $XDG_RUNTIME_DIR/hestia-shell/assistant.sock
 $XDG_RUNTIME_DIR/hestia-shell/ai.sock
 http://127.0.0.1:8765/mobile_capabilities
+http://127.0.0.1:8765/mobile_state
 http://127.0.0.1:8765/health
 ```
 
@@ -25,7 +26,30 @@ http://127.0.0.1:8765/health
 GET http://127.0.0.1:8765/mobile_capabilities
 ```
 
-The response describes socket paths, supported assistant states, supported visual verbs, protected modes, forbidden behaviors, and sanitized orchestrator availability. It must not reveal raw upstream URLs, secrets, or exception details.
+The response describes socket paths, supported assistant states, supported visual verbs, protected modes, forbidden behaviors, sanitized orchestrator availability, and the local `mobile_state` endpoint. It must not reveal raw upstream URLs, secrets, or exception details.
+
+## Runtime state
+
+`hestia-ai-bridge` exposes a local runtime-state endpoint:
+
+```text
+GET http://127.0.0.1:8765/mobile_state
+```
+
+The response describes whether the surface is currently protected and which verbs are safe right now:
+
+```json
+{"interface":"hestia-mobile-agent-phone-interface","version":1,"assistant_state":"idle","protected_mode":null,"protected":false,"online":true,"chat_open":false,"app_interface_open":false,"visible_cards":[],"safe_actions":["show_card","update_card","dismiss_card"]}
+```
+
+When `protected` is true, adapters must send only verbs listed in `safe_actions`. The default protected safe set is `dismiss_card`, `close_chat`, and `close_app_interface`.
+
+## Versioning policy
+
+- `interface` is the stable contract family identifier.
+- `version` increments on breaking changes to required fields, verb meanings, socket protocol, or protected-mode behavior.
+- Additive fields are non-breaking; agents must ignore unknown fields.
+- Agents must refuse unknown major/interface versions and must never fall back to raw socket mutation.
 
 ## Agent adapter
 
@@ -38,7 +62,7 @@ PYTHONPATH=src python3 -m hestia_mobile_shell.agent_adapter show-card \
   --body "This card was capability-checked before being sent."
 ```
 
-The adapter fetches `http://127.0.0.1:8765/mobile_capabilities`, validates the interface name/version, enforces `transport: local-only`, rejects non-loopback HTTP capability URLs, refuses visual verbs not advertised by the phone, and then sends one newline-delimited JSON event to the advertised `assistant.sock`.
+The adapter fetches `http://127.0.0.1:8765/mobile_capabilities`, validates the interface name/version, enforces `transport: local-only`, rejects non-loopback HTTP capability URLs, requires a `mobile_state` URL, refuses visual verbs not advertised by the phone, fetches `mobile_state`, refuses protected-mode-unsafe actions, and then sends one newline-delimited JSON event to the advertised `assistant.sock`. If the bridge is token-protected, pass `--bridge-token` or set `HESTIA_BRIDGE_TOKEN`; the adapter sends the same bearer token to capabilities and state endpoints.
 
 The installed console script is:
 
@@ -163,6 +187,7 @@ Offline validation should include:
 PYTHONPATH=src python3 -m pytest -q
 PYTHONPATH=src python3 -m hestia_mobile_shell.mock_socket --socket /tmp/hestia-assistant.sock
 PYTHONPATH=src python3 -m hestia_mobile_shell.control --socket /tmp/hestia-assistant.sock show-card --id agent-demo --title "Agent control works"
+PYTHONPATH=src python3 -m hestia_mobile_shell.fake_phone --root /tmp/hestia-fake-phone --port 8766
 ```
 
 Runtime phone validation remains separate: confirm the active Phosh session, `hestia-ai-bridge.service`, `hestia-unmute-voice.service`, `assistant.sock`, `ai.sock`, and bridge health before claiming end-to-end device readiness.

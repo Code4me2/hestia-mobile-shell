@@ -22,6 +22,7 @@ hestia-mobile-shell = "hestia_mobile_shell.app:main"
 hestia-mobile-mock-socket = "hestia_mobile_shell.mock_socket:main"
 hestia-mobile-control = "hestia_mobile_shell.control:main"
 hestia-mobile-agent = "hestia_mobile_shell.agent_adapter:main"
+hestia-mobile-fake-phone = "hestia_mobile_shell.fake_phone:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

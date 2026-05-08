@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import socket
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +15,7 @@ from urllib.parse import urlparse
 INTERFACE_NAME = "hestia-mobile-agent-phone-interface"
 SUPPORTED_VERSION = 1
 DEFAULT_CAPABILITIES_URL = "http://127.0.0.1:8765/mobile_capabilities"
+DEFAULT_STATE_URL = "http://127.0.0.1:8765/mobile_state"
 
 EVENT_TYPES_BY_VERB = {
     "show_card": "hestia_mobile.show_card",
@@ -35,21 +38,53 @@ class UnsupportedVerbError(ValueError):
     """Raised when an adapter caller asks for a verb not advertised by the phone."""
 
 
+class StateError(ValueError):
+    """Raised when `/mobile_state` is missing required local contract data."""
+
+
+class ProtectedModeError(RuntimeError):
+    """Raised when the phone state says an action is unsafe right now."""
+
+
 @dataclass(frozen=True)
 class PhoneCapabilities:
     version: int
     assistant_socket: Path
     visual_verbs: set[str]
     protected_modes: tuple[str, ...]
+    state_url: str | None = None
 
 
-def fetch_capabilities(url: str = DEFAULT_CAPABILITIES_URL, *, timeout: float = 5.0) -> dict[str, object]:
+@dataclass(frozen=True)
+class MobileState:
+    protected: bool
+    protected_mode: str | None
+    safe_actions: set[str]
+
+
+def fetch_capabilities(url: str = DEFAULT_CAPABILITIES_URL, *, timeout: float = 5.0, token: str | None = None) -> dict[str, object]:
     _require_loopback_url(url, field="capabilities URL")
-    with urllib.request.urlopen(url, timeout=timeout) as response:
+    request = _json_request(url, token=token)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         payload = response.read().decode("utf-8")
     parsed = json.loads(payload)
     if not isinstance(parsed, dict):
         raise CapabilityError("capabilities response must be a JSON object")
+    return parsed
+
+
+def fetch_mobile_state(url: str = DEFAULT_STATE_URL, *, timeout: float = 5.0, token: str | None = None) -> dict[str, object]:
+    _require_loopback_url(url, field="mobile_state URL")
+    request = _json_request(url, token=token)
+    try:
+        response = urllib.request.urlopen(request, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        response = exc
+    with response:
+        payload = response.read().decode("utf-8")
+    parsed = json.loads(payload)
+    if not isinstance(parsed, dict):
+        raise StateError("mobile_state response must be a JSON object")
     return parsed
 
 
@@ -69,10 +104,16 @@ def validate_capabilities(capabilities: Mapping[str, object]) -> PhoneCapabiliti
         raise CapabilityError("capabilities must include assistant socket")
 
     http = capabilities.get("http")
-    if isinstance(http, Mapping):
-        for name, value in http.items():
-            if isinstance(value, str):
-                _require_loopback_url(value, field=f"http.{name}")
+    if not isinstance(http, Mapping):
+        raise CapabilityError("capabilities http must include mobile_state")
+    state_url = None
+    for name, value in http.items():
+        if isinstance(value, str):
+            _require_loopback_url(value, field=f"http.{name}")
+    if isinstance(http.get("mobile_state"), str):
+        state_url = http["mobile_state"]
+    else:
+        raise CapabilityError("capabilities http must include mobile_state")
 
     visual_verbs = capabilities.get("visual_verbs")
     if not isinstance(visual_verbs, list) or not all(isinstance(verb, str) for verb in visual_verbs):
@@ -91,17 +132,47 @@ def validate_capabilities(capabilities: Mapping[str, object]) -> PhoneCapabiliti
         assistant_socket=Path(assistant_socket),
         visual_verbs=supported,
         protected_modes=tuple(protected_modes),
+        state_url=state_url,
     )
 
 
+def validate_mobile_state(state: Mapping[str, object]) -> MobileState:
+    if state.get("interface") != INTERFACE_NAME:
+        raise StateError(f"mobile_state interface must be {INTERFACE_NAME!r}")
+    if state.get("version") != SUPPORTED_VERSION:
+        raise StateError(f"mobile_state version must be {SUPPORTED_VERSION}")
+    protected = state.get("protected")
+    if not isinstance(protected, bool):
+        raise StateError("mobile_state protected must be a boolean")
+    protected_mode = state.get("protected_mode")
+    if protected_mode is not None and not isinstance(protected_mode, str):
+        raise StateError("mobile_state protected_mode must be a string or null")
+    safe_actions = state.get("safe_actions", [])
+    if not isinstance(safe_actions, list) or not all(isinstance(action, str) for action in safe_actions):
+        raise StateError("mobile_state safe_actions must be a list of strings")
+    return MobileState(protected=protected, protected_mode=protected_mode, safe_actions=set(safe_actions))
+
+
 class AgentPhoneAdapter:
-    def __init__(self, capabilities: PhoneCapabilities, *, capabilities_url: str | None = None):
+    def __init__(
+        self,
+        capabilities: PhoneCapabilities,
+        *,
+        capabilities_url: str | None = None,
+        state_fetcher: Callable[[str], Mapping[str, object]] | None = None,
+    ):
         self.capabilities = capabilities
         self.capabilities_url = capabilities_url
+        self.state_fetcher = state_fetcher
 
     @classmethod
-    def from_capabilities(cls, capabilities: Mapping[str, object]) -> "AgentPhoneAdapter":
-        return cls(validate_capabilities(capabilities))
+    def from_capabilities(
+        cls,
+        capabilities: Mapping[str, object],
+        *,
+        state_fetcher: Callable[[str], Mapping[str, object]] | None = None,
+    ) -> "AgentPhoneAdapter":
+        return cls(validate_capabilities(capabilities), state_fetcher=state_fetcher)
 
     @classmethod
     def from_capabilities_url(
@@ -109,13 +180,17 @@ class AgentPhoneAdapter:
         url: str = DEFAULT_CAPABILITIES_URL,
         *,
         fetcher: Callable[[str], Mapping[str, object]] | None = None,
+        state_fetcher: Callable[[str], Mapping[str, object]] | None = None,
+        bridge_token: str | None = None,
     ) -> "AgentPhoneAdapter":
         _require_loopback_url(url, field="capabilities URL")
-        fetch = fetcher if fetcher is not None else fetch_capabilities
-        return cls(validate_capabilities(fetch(url)), capabilities_url=url)
+        fetch = fetcher if fetcher is not None else (lambda fetch_url: fetch_capabilities(fetch_url, token=bridge_token))
+        state_fetch = state_fetcher if state_fetcher is not None else (lambda state_url: fetch_mobile_state(state_url, token=bridge_token))
+        return cls(validate_capabilities(fetch(url)), capabilities_url=url, state_fetcher=state_fetch)
 
     def send_event(self, verb: str, event: Mapping[str, object]) -> None:
         self._require_verb(verb)
+        self._require_safe_now(verb)
         expected_type = EVENT_TYPES_BY_VERB[verb]
         if event.get("type") != expected_type:
             raise UnsupportedVerbError(f"visual verb {verb} must send event type {expected_type}")
@@ -189,11 +264,21 @@ class AgentPhoneAdapter:
         if verb not in self.capabilities.visual_verbs:
             raise UnsupportedVerbError(f"phone interface does not advertise visual verb: {verb}")
 
+    def _require_safe_now(self, verb: str) -> None:
+        if self.state_fetcher is None or self.capabilities.state_url is None:
+            raise StateError("mobile_state is required before sending visual events")
+        _require_loopback_url(self.capabilities.state_url, field="mobile_state URL")
+        state = validate_mobile_state(self.state_fetcher(self.capabilities.state_url))
+        if state.protected and verb not in state.safe_actions:
+            mode = state.protected_mode or "protected"
+            raise ProtectedModeError(f"phone is in protected mode {mode}; visual verb {verb} is not safe")
+
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
-    adapter = AgentPhoneAdapter.from_capabilities_url(args.capabilities_url)
+    token = args.bridge_token if args.bridge_token is not None else os.environ.get("HESTIA_BRIDGE_TOKEN")
+    adapter = AgentPhoneAdapter.from_capabilities_url(args.capabilities_url, bridge_token=token)
     _dispatch_cli(adapter, args)
     if not args.quiet:
         print(json.dumps({"sent": args.command, "capabilities_url": args.capabilities_url}, separators=(",", ":")))
@@ -203,6 +288,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validated agent adapter for the Hestia Mobile phone interface")
     parser.add_argument("--capabilities-url", default=DEFAULT_CAPABILITIES_URL)
+    parser.add_argument("--bridge-token", default=None, help="Bearer token for token-protected local bridge; defaults to HESTIA_BRIDGE_TOKEN")
     parser.add_argument("--quiet", action="store_true")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -278,6 +364,13 @@ def _require_loopback_url(url: str, *, field: str) -> None:
         raise CapabilityError(f"{field} must be an HTTP loopback URL")
     if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
         raise CapabilityError(f"{field} must use a loopback host")
+
+
+def _json_request(url: str, *, token: str | None) -> urllib.request.Request:
+    headers = {"Accept": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return urllib.request.Request(url, headers=headers)
 
 
 def _compact(event: Mapping[str, object | None]) -> dict[str, object]:
